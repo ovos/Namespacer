@@ -9,6 +9,11 @@ class Transformer
     /** @var \Namespacer\Model\Map */
     protected $map;
 
+    // list of reserved aliases for namespaced classes
+    protected $reservedAliases = [
+        'Exception',
+    ];
+
     public function __construct(Map $map)
     {
         $this->map = $map;
@@ -463,14 +468,21 @@ class Transformer
 
                 $prefix = $theyAreFunctions ? 'function ' : '';
                 foreach ($shortNames as $fqcn => $sn) {
-                    if (isset($dupShortNames[$fqcn]) && substr_count($fqcn, '\\') >= 1) {
+                    if ((
+                            isset($dupShortNames[$fqcn])
+                            || in_array(strtolower($sn), array_map('strtolower', $this->reservedAliases))
+                        )
+                        && substr_count($fqcn, '\\') >= 1
+                    ) {
                         $parts = array_reverse(explode('\\', $fqcn));
                         $i = 2;
                         // find unique alias for use, starting with glueing last two parts
                         do {
                             $a = array_reverse(array_slice($parts, 0, $i++));
                             $alias = implode('', $a);
-                            if(in_array($alias, $shortNames)) {
+                            if(in_array(strtolower($alias), array_map('strtolower', $shortNames))
+                                || in_array(strtolower($alias), array_map('strtolower', $this->reservedAliases))
+                            ) {
                                 $alias = '';
                             }
                         } while(!$alias && count($a) < count($parts));
@@ -480,7 +492,13 @@ class Transformer
                     } else {
                         $i = 0;
                         $base = ($theyAreFunctions ? 'base' : 'Base') . ucfirst($sn);
-                        while(isset($dupShortNames[$sn])) {
+                        while(
+                            (
+                                !in_array(strtolower($sn), array_map('strtolower', $this->reservedAliases))
+                                || in_array(strtolower($currentClass), array_map('strtolower', $this->reservedAliases))
+                            )
+                            && in_array(strtolower($sn), array_map('strtolower', array_keys($dupShortNames)))
+                        ) {
                             $sn = $base . ($i > 0 ? $i : '');
                             $i++;
                         }
