@@ -22,7 +22,7 @@ class Transformer
     public function moveFiles()
     {
         $fileRenamings = $this->map->getFileRenamings();
-        $this->validateFileRenamings($fileRenamings);
+        //$this->validateFileRenamings($fileRenamings);
         foreach ($fileRenamings as $old => $new) {
             if ($old == $new) {
                 continue;
@@ -52,7 +52,8 @@ class Transformer
         $functionTransformations = $this->map->getFunctionTransformations();
         foreach ($fileNames as $file => $names) {
             if (!file_exists($file)) {
-                throw new \RuntimeException('The file ' . $file . ' could not be found in the filesystem, check your map file is correct.');
+                continue;
+                //throw new \RuntimeException('The file ' . $file . ' could not be found in the filesystem, check your map file is correct.');
             }
             $hadNamespace = $this->modifyFileWithNewNamespaceAndClass($file, $names, $noFileDocBlocks);
 
