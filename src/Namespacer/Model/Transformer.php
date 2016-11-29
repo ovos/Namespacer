@@ -203,11 +203,12 @@ class Transformer
         do {
             // read existing uses
             $t = is_array($token) ? $token[0] : $token;
-            if ($this->isClass($t)
+            if (($this->isClass($t)
                 && (
                     ($previousKey = (key($tokens) - 1)) >= 0 // ignore ::class
                     && (!is_array($tokens[$previousKey]) || $tokens[$previousKey][0] != T_DOUBLE_COLON)
-                )
+                ))
+                || $t == T_FUNCTION
             ) {
                 $inClass = true;
             }
