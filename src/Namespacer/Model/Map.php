@@ -75,7 +75,22 @@ class Map
     {
         $data = array();
         foreach ($this->mapData as $item) {
-            $data[$item['original_class']] = $item['new_namespace'] . '\\' . $item['new_class'];
+        	if(!empty($item['original_class']) && !empty($item['new_class'])) {
+            	$data[$item['original_class']] = $item['new_namespace'] . '\\' . $item['new_class'];
+			}
+        }
+        return $data;
+    }
+
+    public function getFunctionTransformations()
+    {
+        $data = array();
+        foreach ($this->mapData as $item) {
+        	if(!empty($item['functions']) && !empty($item['new_namespace'])) {
+        	    foreach($item['functions'] as $function) {
+            	    $data[$function] = $item['new_namespace'] . '\\' . $function;
+                }
+			}
         }
         return $data;
     }

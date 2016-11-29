@@ -10,7 +10,7 @@
     "repositories": [
         {
             "type": "composer",
-            "url": "http://packages.zendframework.com/"
+            "url": "https://packages.zendframework.com/"
         }
     ],
     "autoload": {
@@ -34,7 +34,23 @@
         "zendframework/zend-file": "^2.3.0",
         "zendframework/zend-loader": "^2.3.0",
         "zendframework/zend-version": "^2.3.0",
-        "zendframework/zend-text": "^2.3.0"
+        "zendframework/zend-text": "^2.3.0",
+        "octolab/cleaner": "@dev"
     },
-    "bin": ["namespacer.php"]
+    "bin": ["namespacer.php"],
+	"config": {
+		"octolab/cleaner": {
+			"clear": {
+				"zendframework/*": ["all"],
+				"container-interop/*": ["all"]
+			},
+			"debug": false
+		}
+	},
+	"extra": {
+		"dev-files": {
+			"all": ["/doc", "/docs", "/test", ".git"]
+		}
+	}
+
 }

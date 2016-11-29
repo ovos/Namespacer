@@ -51,8 +51,8 @@ class Module implements
 
         return array(
             'Basic information:',
-            'map --mapfile <file> --source <sourcedir>' => 'create a map in file <file> from <source>',
-            'transform --mapfile <file>' => 'transform the files in the map',
+            'map --mapfile <file> --source <sourcedir> --ignore <comma-separated-paths> --no-dir-namespacing --merge' => 'create a map in file <file> from <source>',
+            'transform --mapfile <file> --no-file-docblocks --no-namespace-no-use' => 'transform the files in the map',
             'fix --mapfile <file> --target <targetdir>' => 'fix namespace references in <target> according to the map in <file>',
         );
     }

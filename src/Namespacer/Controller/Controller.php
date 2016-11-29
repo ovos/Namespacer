@@ -19,9 +19,21 @@ class Controller extends AbstractActionController
     {
         $mapfile = $this->params()->fromRoute('mapfile');
         $source  = $this->params()->fromRoute('source');
+        $noDirNamespacing = $this->params()->fromRoute('no-dir-namespacing'); // do not nest classes into namespaces dirs but leave them where they are
+        $ignore = $this->params()->fromRoute('ignore'); // comma-separated dir names to ignore
+        $merge = $this->params()->fromRoute('merge'); // comma-separated dir names to ignore
+
+        $ignore = $ignore ? explode(',', $ignore) : array();
+
         $map     = array();
         $mapper  = new Mapper();
-        $mapdata = $mapper->getMapDataForDirectory($source);
+        $mapdata = $mapper->getMapDataForDirectory($source, $ignore, $noDirNamespacing);
+
+        if($merge && file_exists($mapfile)) {
+            $data = include $mapfile;
+            $mapdata = array_merge($data, $mapdata);
+        }
+
         $content = '<' . '?php return ' . var_export($mapdata, true) . ';';
 
         file_put_contents($mapfile, $content);
@@ -31,24 +43,27 @@ class Controller extends AbstractActionController
     {
         $mapfile     = $this->params()->fromRoute('mapfile');
         $step        = $this->params()->fromRoute('step');
+        $source  = $this->params()->fromRoute('source');
+        $noFileDocBlocks = $this->params()->fromRoute('no-file-docblocks');
+        $noNamespaceNoUse = $this->params()->fromRoute('no-namespace-no-use');
+
         $data        = include $mapfile;
+
+        chdir(realpath($source));
+
         $map         = new Map($data);
         $transformer = new Transformer($map);
 
         switch ($step) {
-            case '3':
-                $transformer->modifyContentForUseStatements();
-                break;
             case '2':
-                $transformer->modifyNamespaceAndClassNames();
+                $transformer->modifyNamespaceAndClassNames($noFileDocBlocks, $noNamespaceNoUse);
                 break;
             case '1':
                 $transformer->moveFiles();
                 break;
             default:
                 $transformer->moveFiles();
-                $transformer->modifyNamespaceAndClassNames();
-                $transformer->modifyContentForUseStatements();
+                $transformer->modifyNamespaceAndClassNames($noFileDocBlocks, $noNamespaceNoUse);
                 break;
         }
     }

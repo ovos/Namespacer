@@ -34,7 +34,7 @@ return array(
                 ),
                 'namespacer-create-map' => array(
                     'options' => array(
-                        'route'    => 'map [--mapfile=] [--source=]',
+                        'route'    => 'map [--mapfile=] [--source=] [--ignore=] [--no-dir-namespacing] [--merge]',
                         'defaults' => array(
                             'controller' => 'Namespacer\Controller\Controller',
                             'action'     => 'createMap',
@@ -43,7 +43,7 @@ return array(
                 ),
                 'namespacer-transform' => array(
                     'options' => array(
-                        'route'    => 'transform [--mapfile=] [--step=]',
+                        'route'    => 'transform [--mapfile=] [--source=] [--step=] [--no-file-docblocks] [--no-namespace-no-use]',
                         'defaults' => array(
                             'controller' => 'Namespacer\Controller\Controller',
                             'action'     => 'transform',
