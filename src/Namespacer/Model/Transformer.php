@@ -14,6 +14,8 @@ class Transformer
         'Exception',
     ];
 
+    protected $eols = [];
+
     public function __construct(Map $map)
     {
         $this->map = $map;
@@ -99,11 +101,14 @@ class Transformer
 
     protected function modifyFileWithNewNamespaceAndClass($file, $names, $noFileDocBlocks = false)
     {
-        $tokens = token_get_all(file_get_contents($file));
+        $contents = file_get_contents($file);
+        $tokens = token_get_all($contents);
 
         if ($names['namespace'] == '') {
             return;
         }
+
+        $eol = $this->detectEOL($contents, $file);
 
         $namespaceExists = false;
         foreach($tokens as $index => $token) {
@@ -123,11 +128,11 @@ class Transformer
             switch (true) {
                 case ($tokens[0][0] === T_OPEN_TAG && $tokens[1][0] === T_DOC_COMMENT && !$noFileDocBlocks):
                     $hasWhitespace = is_array($tokens[2]) && $tokens[2][0] == T_WHITESPACE;
-                    array_splice($tokens, 2, 0, "\n\nnamespace {$names['namespace']};\n" . (!$hasWhitespace ? "\n" : ""));
+                    array_splice($tokens, 2, 0, $eol . $eol . "namespace {$names['namespace']};" . $eol . (!$hasWhitespace ? $eol : ""));
                     break;
                 default:
                     $hasWhitespace = is_array($tokens[1]) && $tokens[1][0] == T_WHITESPACE;
-                    array_splice($tokens, 1, 0, "namespace {$names['namespace']};\n" . (!$hasWhitespace ? "\n" : ""));
+                    array_splice($tokens, 1, 0, "namespace {$names['namespace']};" . $eol . (!$hasWhitespace ? $eol : ""));
                     break;
             }
         }
@@ -184,7 +189,10 @@ class Transformer
 
     protected function modifyFileWithNewUseStatements($file, $classTransformations, $functionTransformations, $noNamespaceNoUse = false, $hadNamespace = false)
     {
-        $tokens = token_get_all(file_get_contents($file));
+        $contents = file_get_contents($file);
+        $tokens = token_get_all($contents);
+
+        $eol = $this->detectEOL($contents, $file);
 
         $ti = array();
         $token = reset($tokens);
@@ -231,6 +239,7 @@ class Transformer
                     if (is_array($tokens[$i])) {
                         if($tokens[$i][0] == T_FUNCTION) {
                             $isFunction = true;
+                            $i++;
                         } else if ($tokens[$i][0] == T_STRING || $tokens[$i][0] == T_NS_SEPARATOR) {
                             if(!$useNsResolved) {
                                 $useNs .= $tokens[$i][1];
@@ -449,7 +458,7 @@ class Transformer
             natsort($uniqueUses);
             natsort($uniqueFunctions);
 
-            $buildUse = function($uniqueUses, $currentClass, &$shortNames, $existingShortNames, $theyAreFunctions = false) {
+            $buildUse = function($uniqueUses, $currentClass, &$shortNames, $existingShortNames, $theyAreFunctions = false) use ($eol) {
                 $useContent = '';
 
                 // cleanup unique uses
@@ -488,7 +497,7 @@ class Transformer
                             }
                         } while(!$alias && count($a) < count($parts));
 
-                        $useContent .= "use $prefix$fqcn as " . $alias . ";\n";
+                        $useContent .= "use $prefix$fqcn as " . $alias . ";" . $eol;
                         $shortNames[$fqcn] = $alias;
                     } else {
                         $i = 0;
@@ -506,9 +515,9 @@ class Transformer
 
                         $lastPart = (false !== ($shortNameStart = strrpos($fqcn, '\\'))) ? substr($fqcn, $shortNameStart+1) : $fqcn;
                         if($lastPart != $sn) {
-                            $useContent .= "use $prefix$fqcn as " . $sn . ";\n";
+                            $useContent .= "use $prefix$fqcn as " . $sn . ";" . $eol;
                         } else {
-                            $useContent .= "use $prefix$fqcn;\n";
+                            $useContent .= "use $prefix$fqcn;" . $eol;
                         }
 
                         $shortNames[$fqcn] = $sn;
@@ -539,9 +548,9 @@ class Transformer
             if (key($tokens) == $usePlacement) {
                 if($usePlacement == 0) {
                     // special case - but use statements at the beginning of the file with new php tag
-                    $contents .= "<?php\n\n";
-                    $contents .= "$useContent\n";
-                    $contents .= "?>\n";
+                    $contents .= "<?php" . $eol . $eol;
+                    $contents .= $useContent . $eol;
+                    $contents .= "?>" . $eol;
                     $contents .= (is_array($token)) ? $token[1] : $token;
                     continue;
                 }
@@ -550,29 +559,20 @@ class Transformer
                     do {
                         $contents .= (is_array($token)) ? $token[1] : $token;
                     } while (($token = next($tokens)) !== false && !(is_string($token) && $token == ';'));
-                    $contents .= ";\n";
+                    $contents .= ";" . $eol;
                 } else {
                     $contents .= (is_array($token)) ? $token[1] : $token;
-                    $contents .= "\n"; // additional blank line after open tag
+                    $contents .= $eol; // additional blank line after open tag
                 }
-                //$contents .= "\n\n$useContent\n";
-                // less blank lines
-                $contents .= "\n" . rtrim($useContent);
+
+                $contents .= $eol . $useContent . $eol;
 
                 // check next token if it's blank line
                 $nextKey = key($tokens) + 1;
                 $nextToken = isset($tokens[$nextKey]) ? $tokens[$nextKey] : null;
-                if($nextToken !== null) {
-                    $nextToken = (is_array($nextToken)) ? $nextToken[1] : $nextToken;
-                    $newLines = 0;
-                    if($nextToken !== '' && preg_match('/^(\s+)[^\s]*/', $nextToken, $matches)) {
-                        $newLines = substr_count($matches[1], "\n");
-                    }
-                    if($newLines < 2) {
-                        $contents .= str_repeat("\n", 2 - $newLines);
-                    }
-                } else {
-                    $contents .= "\n";
+                $nextToken = (is_array($nextToken)) ? $nextToken[0] : $nextToken;
+                if($nextToken == T_WHITESPACE) {
+                    next($tokens); // skip whitespace token
                 }
             } elseif (array_search(key($tokens), $unnecessaryNSTokens) !== false
                 && array_search(key($tokens) + 1, $interestingTokens) !== false) {
@@ -655,5 +655,32 @@ class Transformer
             T_INTERFACE,
             T_TRAIT,
         ], true);
+    }
+
+    public function detectEOL($content, $cacheKey = null)
+    {
+        if(null !== $cacheKey && array_key_exists($cacheKey, $this->eols)) {
+            return $this->eols[$cacheKey];
+        }
+
+        // http://stackoverflow.com/a/40227058/3729316
+        $arr = array_count_values(
+            explode(
+                ' ',
+                preg_replace(
+                    '/[^\r\n]*(\r\n|\n|\r)/',
+                    '\1 ',
+                    $content
+                )
+            )
+        );
+        arsort($arr);
+        $eol = key($arr);
+
+        if($cacheKey !== null) {
+            $this->eols[$cacheKey] = $eol;
+        }
+
+        return $eol;
     }
 }
