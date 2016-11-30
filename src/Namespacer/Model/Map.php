@@ -76,7 +76,10 @@ class Map
         $data = array();
         foreach ($this->mapData as $item) {
         	if(!empty($item['original_class']) && !empty($item['new_class'])) {
-            	$data[$item['original_class']] = $item['new_namespace'] . '\\' . $item['new_class'];
+                $newClass = $item['new_namespace'] . '\\' . $item['new_class'];
+                if($item['original_class'] != $newClass) {
+                    $data[$item['original_class']] = $newClass;
+                }
 			}
         }
         return $data;
