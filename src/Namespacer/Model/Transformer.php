@@ -59,7 +59,7 @@ class Transformer
             }
             $hadNamespace = $this->modifyFileWithNewNamespaceAndClass($file, $names, $noFileDocBlocks);
 
-            $this->modifyFileWithNewUseStatements($file, $classTransformations, $functionTransformations, $noNamespaceNoUse, $hadNamespace);
+            $this->modifyFileWithNewUseStatements($file, $classTransformations, $functionTransformations, $noNamespaceNoUse, $hadNamespace, $names['namespace']);
         }
     }
 
@@ -187,7 +187,7 @@ class Transformer
         file_put_contents($file, $contents);
     }
 
-    protected function modifyFileWithNewUseStatements($file, $classTransformations, $functionTransformations, $noNamespaceNoUse = false, $hadNamespace = false)
+    protected function modifyFileWithNewUseStatements($file, $classTransformations, $functionTransformations, $noNamespaceNoUse = false, $hadNamespace = false, $currentNamespace = '')
     {
         $contents = file_get_contents($file);
         $tokens = token_get_all($contents);
@@ -212,6 +212,25 @@ class Transformer
         $existingShortNamesFunc = array();
 
         $unnecessaryNSTokens = array();
+
+
+        $isUsed = function($alias) use ($currentNamespace, $currentClass, $existingUses, $classTransformations) {
+            if($alias == $currentClass
+                || isset($existingUses[$alias])) {
+                return true;
+            }
+            if($currentNamespace) {
+                $check = $currentNamespace . '\\' . $alias;
+                foreach($classTransformations as $newClass) {
+                    // check if alias is a valid class in current namespace
+                    if(preg_match('/^'. preg_quote($check, '/') .'($|\\\\)/', $newClass)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
 
         $inClass = false;
         do {
@@ -278,6 +297,7 @@ class Transformer
             $normalTokens[] = ((is_array($token)) ? $token[0] : $token);
         } while ($token = next($tokens));
 
+
         foreach ($normalTokens as $i => $t1) {
             $t2 = isset($normalTokens[$i+1]) ? $normalTokens[$i+1] : null;
             $t3 = isset($normalTokens[$i+2]) ? $normalTokens[$i+2] : null;
@@ -315,7 +335,7 @@ class Transformer
                 && ($t0 != T_NS_SEPARATOR || $tn1 != T_STRING)
             ) {
                 if (!in_array($tokens[$i][1], array('self', 'parent', 'static'))) {
-                    if($t0 != T_NS_SEPARATOR && $hadNamespace) { // this is a class relative to current namespace
+                    if($t0 != T_NS_SEPARATOR && $isUsed($tokens[$i][1])) { // this is a class relative to current namespace
                         continue;
                     }
 
@@ -328,7 +348,7 @@ class Transformer
             }
 
             // instanceof
-            if ($t1 == T_INSTANCEOF && $t2 == T_WHITESPACE && $t3 == T_STRING && !$hadNamespace) { // this is NOT a class relative to current namespace
+            if ($t1 == T_INSTANCEOF && $t2 == T_WHITESPACE && $t3 == T_STRING && !$isUsed($tokens[$i+2][1])) { // this is NOT a class relative to current namespace
                 if (!in_array($tokens[$i+2][1], array('self', 'parent', 'static'))) {
                     $interestingTokens[] = $i+2;
                 }
@@ -341,7 +361,7 @@ class Transformer
             }
 
             // new
-            if ($t1 == T_NEW && $t2 == T_WHITESPACE && $t3 == T_STRING && !$hadNamespace) { // this is NOT a class relative to current namespace
+            if ($t1 == T_NEW && $t2 == T_WHITESPACE && $t3 == T_STRING && !$isUsed($tokens[$i+2][1])) { // this is NOT a class relative to current namespace
                 if (!in_array($tokens[$i+2][1], array('self', 'parent', 'static'))) {
                     $interestingTokens[] = $i+2;
                 }
@@ -368,7 +388,7 @@ class Transformer
                         && ($normalTokens[$u - 1] != T_NS_SEPARATOR
                             || $normalTokens[$u - 2] != T_STRING)
                     ) {
-                        if(!($normalTokens[$u - 1] != T_NS_SEPARATOR && $hadNamespace)) { // this is NOT a class relative to current namespace
+                        if(!($normalTokens[$u - 1] != T_NS_SEPARATOR && $isUsed($tokens[$u][1]))) { // this is NOT a class relative to current namespace
                             $interestingTokens[] = $u;
                         }
                     }
@@ -382,7 +402,7 @@ class Transformer
             if ($t1 == T_STRING && $t2 == T_WHITESPACE && $t3 == T_VARIABLE
                 && ($t0 != T_NS_SEPARATOR || $tn1 != T_STRING)
             ) {
-                if($t0 != T_NS_SEPARATOR && $hadNamespace) { // this is a class relative to current namespace
+                if($t0 != T_NS_SEPARATOR && $isUsed($tokens[$i][1])) { // this is a class relative to current namespace
                     continue;
                 }
                 $interestingTokens[] = $i;
@@ -399,7 +419,7 @@ class Transformer
             }
 
             // use traits inside class (after current class definition has been found)
-            if($t1 == T_USE && $t2 == T_WHITESPACE && $t3 == T_STRING && !$hadNamespace) { // this is NOT a class relative to current namespace
+            if($t1 == T_USE && $t2 == T_WHITESPACE && $t3 == T_STRING && !$isUsed($tokens[$i+2][1])) { // this is NOT a class relative to current namespace
                 $interestingTokens[] = $i+2;
                 continue;
             }
@@ -602,7 +622,7 @@ class Transformer
         file_put_contents($file, $contents);
     }
 
-    protected function modifyDocBlock($doc, array $uses = [], array $shortNames = [], array $classTransformations = [], $hasNamespace = true, $hadNamespace = false)
+    protected function modifyDocBlock($doc, array $uses = [], array $shortNames = [], array $classTransformations = [], $hasNamespace = true)
     {
         $classPattern = '[a-zA-Z_][a-zA-Z0-9_]*(?:\[\])?';
         $classPattern .= '(?:\|'.$classPattern.')*';
@@ -611,7 +631,7 @@ class Transformer
             '/(\* @(?:param|return|property|var|see|uses|throws) )(' . $classPattern . ')(\s|::|$)/m',
         ];
 
-        $callback = function($m) use ($uses, $shortNames, $classTransformations, $hasNamespace, $hadNamespace) {
+        $callback = function($m) use ($uses, $shortNames, $classTransformations, $hasNamespace) {
             $tokens = explode('|', $m[2]);
             foreach($tokens as &$token) {
                 $bracketPart = '';
@@ -633,7 +653,7 @@ class Transformer
                     if(isset($classTransformations[$token])) {
                         $token = $classTransformations[$token];
                     }
-                    if($hasNamespace && !$hadNamespace) {
+                    if($hasNamespace) {
                         $token = '\\' . $token;
                     }
                 }
