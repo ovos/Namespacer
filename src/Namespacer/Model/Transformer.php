@@ -214,12 +214,12 @@ class Transformer
         $unnecessaryNSTokens = array();
 
 
-        $isUsed = function($alias) use ($currentNamespace, $currentClass, $existingUses, $classTransformations) {
+        $isUsed = function($alias) use ($currentNamespace, $currentClass, $existingUses, $classTransformations, $hadNamespace) {
             if($alias == $currentClass
                 || isset($existingUses[$alias])) {
                 return true;
             }
-            if($currentNamespace) {
+            if($currentNamespace && $hadNamespace) {
                 $check = $currentNamespace . '\\' . $alias;
                 foreach($classTransformations as $newClass) {
                     // check if alias is a valid class in current namespace
@@ -480,6 +480,7 @@ class Transformer
 
             $buildUse = function($uniqueUses, $currentClass, &$shortNames, $existingShortNames, $theyAreFunctions = false) use ($eol) {
                 $useContent = '';
+                $prefix = $theyAreFunctions ? 'function ' : '';
 
                 // cleanup unique uses
                 foreach ($uniqueUses as $newName) {
@@ -491,56 +492,81 @@ class Transformer
                     $shortNames[$newName] = $shortName;
                 }
 
-                $shortNamesCount = array_count_values($shortNames);
+                $shortNamesCount = array_count_values(array_map('strtolower', $shortNames));
                 $dupShortNames = array_filter($shortNames, function ($item) use ($shortNamesCount, $currentClass) {
-                    return (($shortNamesCount[$item] >= 2) || $item == $currentClass);
+                    return (($shortNamesCount[strtolower($item)] >= 2) || strtolower($item) == strtolower($currentClass));
                 });
 
-                $prefix = $theyAreFunctions ? 'function ' : '';
-                foreach ($shortNames as $fqcn => $sn) {
-                    if ((
-                            isset($dupShortNames[$fqcn])
-                            || in_array(strtolower($sn), array_map('strtolower', $this->reservedAliases))
-                        )
-                        && substr_count($fqcn, '\\') >= 1
-                    ) {
-                        $parts = array_reverse(explode('\\', $fqcn));
-                        $i = 2;
-                        // find unique alias for use, starting with glueing last two parts
-                        do {
-                            $a = array_reverse(array_slice($parts, 0, $i++));
-                            $alias = implode('', $a);
-                            if(in_array(strtolower($alias), array_map('strtolower', $shortNames))
-                                || in_array(strtolower($alias), array_map('strtolower', $this->reservedAliases))
-                            ) {
-                                $alias = '';
-                            }
-                        } while(!$alias && count($a) < count($parts));
 
-                        $useContent .= "use $prefix$fqcn as " . $alias . ";" . $eol;
-                        $shortNames[$fqcn] = $alias;
-                    } else {
-                        $i = 0;
-                        $base = ($theyAreFunctions ? 'base' : 'Base') . ucfirst($sn);
-                        while(
-                            (
-                                !in_array(strtolower($sn), array_map('strtolower', $this->reservedAliases))
-                                || in_array(strtolower($currentClass), array_map('strtolower', $this->reservedAliases))
+                // array of locked namespaces - which aliases could not be resolved any further
+                $locked = array();
+                $backup = $shortNames;
+                do {
+                    $tryAgain = false;
+                    $shortNames = array_merge($backup, $locked);
+                    foreach ($shortNames as $fqcn => $sn) {
+                        if(isset($locked[$fqcn])) {
+                            continue;
+                        }
+
+                        if ((
+                                isset($dupShortNames[$fqcn])
+                                || in_array(strtolower($sn), array_map('strtolower', $this->reservedAliases))
+                                || in_array(strtolower($sn), array_map('strtolower', $locked))
                             )
-                            && in_array(strtolower($sn), array_map('strtolower', array_keys($dupShortNames)))
+                            && substr_count($fqcn, '\\') >= 1
                         ) {
-                            $sn = $base . ($i > 0 ? $i : '');
-                            $i++;
-                        }
+                            $parts = array_reverse(explode('\\', $fqcn));
+                            $i = 2;
+                            // find unique alias for use, starting with glueing last two parts
+                            do {
+                                $a = array_reverse(array_slice($parts, 0, $i++));
+                                $alias = implode('', $a);
+                                if(in_array(strtolower($alias), array_map('strtolower', $shortNames))
+                                    || in_array(strtolower($alias), array_map('strtolower', $this->reservedAliases))
+                                ) {
+                                    $alias = '';
+                                }
+                            } while(!$alias && count($a) < count($parts));
 
-                        $lastPart = (false !== ($shortNameStart = strrpos($fqcn, '\\'))) ? substr($fqcn, $shortNameStart+1) : $fqcn;
-                        if($lastPart != $sn) {
-                            $useContent .= "use $prefix$fqcn as " . $sn . ";" . $eol;
+                            if(!$alias) {
+                                // okay, use full name without separators as alias, and lock it out,
+                                // so that other use aliases should resolve to something different than this
+                                $alias = implode('', $a);
+                                $locked[$fqcn] = $alias;
+                                $tryAgain = true;
+                                break;
+                            }
+                            $shortNames[$fqcn] = $alias;
+
                         } else {
-                            $useContent .= "use $prefix$fqcn;" . $eol;
-                        }
+                            $i = 0;
+                            $alias = $sn;
+                            $base = ($theyAreFunctions ? 'base' : 'Base') . ucfirst($sn);
+                            while(
+                                (
+                                    !in_array(strtolower($alias), array_map('strtolower', $this->reservedAliases))
+                                    || in_array(strtolower($currentClass), array_map('strtolower', $this->reservedAliases))
+                                ) && (
+                                    in_array(strtolower($alias), array_map('strtolower', array_keys($dupShortNames)))
+                                    || in_array(strtolower($alias), array_map('strtolower', $locked))
+                                )
+                            ) {
+                                $alias = $base . ($i > 0 ? $i : '');
+                                $i++;
+                            }
 
-                        $shortNames[$fqcn] = $sn;
+                            $shortNames[$fqcn] = $alias;
+                        }
+                    }
+                } while ($tryAgain);
+
+                foreach ($shortNames as $fqcn => $sn) {
+                    $lastPart = (false !== ($shortNameStart = strrpos($fqcn, '\\'))) ? substr($fqcn, $shortNameStart+1) : $fqcn;
+                    if($lastPart != $sn) {
+                        $useContent .= "use $prefix$fqcn as " . $sn . ";" . $eol;
+                    } else {
+                        $useContent .= "use $prefix$fqcn;" . $eol;
                     }
                 }
 
@@ -557,7 +583,7 @@ class Transformer
         $docBlocks = [];
         foreach($docTokens as $index) {
             $doc = $tokens[$index][1];
-            $docBlocks[$index] = $this->modifyDocBlock($doc, $uniqueUses, $shortNames, $classTransformations, $hasNamespace, $hadNamespace);
+            $docBlocks[$index] = $this->modifyDocBlock($doc, $uniqueUses, $shortNames, $classTransformations, $hasNamespace, $hadNamespace, $isUsed);
         }
 
 
@@ -622,7 +648,7 @@ class Transformer
         file_put_contents($file, $contents);
     }
 
-    protected function modifyDocBlock($doc, array $uses = [], array $shortNames = [], array $classTransformations = [], $hasNamespace = true)
+    protected function modifyDocBlock($doc, array $uses = [], array $shortNames = [], array $classTransformations = [], $hasNamespace = true, $hadNamespace = false, &$isUsed)
     {
         $classPattern = '[a-zA-Z_][a-zA-Z0-9_]*(?:\[\])?';
         $classPattern .= '(?:\|'.$classPattern.')*';
@@ -631,7 +657,7 @@ class Transformer
             '/(\* @(?:param|return|property|var|see|uses|throws) )(' . $classPattern . ')(\s|::|$)/m',
         ];
 
-        $callback = function($m) use ($uses, $shortNames, $classTransformations, $hasNamespace) {
+        $callback = function($m) use ($uses, $shortNames, $classTransformations, $hasNamespace, &$isUsed) {
             $tokens = explode('|', $m[2]);
             foreach($tokens as &$token) {
                 $bracketPart = '';
@@ -653,7 +679,7 @@ class Transformer
                     if(isset($classTransformations[$token])) {
                         $token = $classTransformations[$token];
                     }
-                    if($hasNamespace) {
+                    if($hasNamespace && !$isUsed($token)) {
                         $token = '\\' . $token;
                     }
                 }
