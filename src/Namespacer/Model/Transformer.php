@@ -654,7 +654,7 @@ class Transformer
         $classPattern .= '(?:\|'.$classPattern.')*';
         $patterns = [
             '/(\/\*\*? @var (?:\$[a-zA-Z0-9\->\[\]]+ )?)(' . $classPattern . ')( (?:\$[a-zA-Z0-9\->\[\]]+ )?\*\/)/',
-            '/(\* @(?:param|return|property|var|see|uses|throws) )(' . $classPattern . ')(\s|::|$)/m',
+            '/(\s\* @(?:param|return|property|var|see|uses|throws) )(' . $classPattern . ')(\s|::|$)/m',
         ];
 
         $callback = function($m) use ($uses, $shortNames, $classTransformations, $hasNamespace, &$isUsed) {
@@ -670,7 +670,9 @@ class Transformer
                     $token = isset($shortNames[$uses[$token]])
                         ? $shortNames[$uses[$token]]
                         : $uses[$token];
-                } else if (false === strpos($token, '\\')
+                } else if (
+                    !in_array($token, $shortNames)
+                    && false === strpos($token, '\\')
                     && !in_array($token, [
                         'string', 'int', 'integer', 'float', 'bool', 'boolean', 'array', 'resource',
                         'null', 'callable', 'mixed', 'void', 'object', 'false', 'true', 'self', 'static',

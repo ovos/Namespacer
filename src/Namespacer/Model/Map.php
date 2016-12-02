@@ -76,7 +76,7 @@ class Map
         $data = array();
         foreach ($this->mapData as $item) {
         	if(!empty($item['original_class']) && !empty($item['new_class'])) {
-                $newClass = $item['new_namespace'] . '\\' . $item['new_class'];
+                $newClass = ltrim($item['new_namespace'] . '\\' . $item['new_class'], '\\');
                 $data[$item['original_class']] = $newClass;
 			}
         }
