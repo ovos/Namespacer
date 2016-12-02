@@ -653,7 +653,7 @@ class Transformer
         $classPattern = '[a-zA-Z_][a-zA-Z0-9_]*(?:\[\])?';
         $classPattern .= '(?:\|'.$classPattern.')*';
         $patterns = [
-            '/(\/\*\*? @var (?:\$[a-zA-Z0-9\->\[\]]+ )?)(' . $classPattern . ')( (?:\$[a-zA-Z0-9\->\[\]]+ )?\*\/)/',
+            '/(\/\*\*? @var (?:\$[a-zA-Z0-9\->_\$\[\]]+ )?)(' . $classPattern . ')( (?:\$[a-zA-Z0-9\->_\$\[\]]+ )?\*\/)/',
             '/(\s\* @(?:param|return|property|var|see|uses|throws) )(' . $classPattern . ')(\s|::|$)/m',
         ];
 

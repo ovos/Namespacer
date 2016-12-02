@@ -31,7 +31,7 @@ class Controller extends AbstractActionController
 
         if($merge && file_exists($mapfile)) {
             $data = include $mapfile;
-            $mapdata = array_merge($data, $mapdata);
+            $mapdata = array_merge($mapdata, $data);
         }
 
         $content = '<' . '?php return ' . var_export($mapdata, true) . ';';
