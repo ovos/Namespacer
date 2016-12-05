@@ -654,7 +654,7 @@ class Transformer
         $classPattern .= '(?:\|'.$classPattern.')*';
         $patterns = [
             '/(\/\*\*? @var (?:\$[a-zA-Z0-9\->_\$\[\]]+ )?)(' . $classPattern . ')( (?:\$[a-zA-Z0-9\->_\$\[\]]+ )?\*\/)/',
-            '/(\s\* @(?:param|return|property|var|see|uses|throws) )(' . $classPattern . ')(\s|::|$)/m',
+            '/(\s\* @(?:param|return|property|var|see|uses|throws|method) )(' . $classPattern . ')(\s|::|$)/m',
         ];
 
         $callback = function($m) use ($uses, $shortNames, $classTransformations, $hasNamespace, &$isUsed) {
