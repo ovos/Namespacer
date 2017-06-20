@@ -76,6 +76,8 @@ class Mapper
         } catch (\Exception $e) {
         }
 
+        $classes = array_filter(array_map('trim', $classes));
+
         if (!count($classes)) {
             $data = array(
                 'root_directory' => $this->findRootDirectory($file, ''),
@@ -236,6 +238,7 @@ class Mapper
             'new','or','private','protected','public','static','switch',
             'throw','try','use','var','while','xor',
             'trait','interface','abstract',
+            'int','string','float','bool',
         );
 
         $nsParts = explode('\\', $data['new_namespace']);
