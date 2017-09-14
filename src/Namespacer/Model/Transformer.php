@@ -172,13 +172,13 @@ class Transformer
                 $contents .= "\n{\n";
                 $contents .= "    use \\" . $names['extends'] . ";";
                 $contents .= "\n}\n";
-                break 2;
+                break;
             }
             if ($this->isClass($token[0])) {
                 $contents .= $token[1] . ' ' . $names['class'];
                 $contents .= " extends \\" . $names['extends'];
                 $contents .= "\n{\n}\n";
-                break 2;
+                break;
             } else {
                 $contents .= (is_array($token)) ? $token[1] : $token;
             }
